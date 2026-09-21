@@ -70,7 +70,7 @@ export default async function CustomersPage({
       </div>
 
       {/* A GET form, so search survives a reload and works without JS. */}
-      <form action="/customers" className="relative max-w-2xl">
+      <form action="/customers" className="relative">
         <Search
           className="pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2 text-muted-foreground"
           aria-hidden
@@ -131,25 +131,29 @@ export default async function CustomersPage({
           />
         )
       ) : (
-        <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+        <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
           {customers.map((customer) => (
             <li key={String(customer._id)}>
               <Link
                 href={`/customers/${String(customer._id)}`}
                 className="flex h-full items-center gap-3.5 rounded-3xl bg-card p-4 transition-transform tile-float hover:-translate-y-0.5"
               >
-                <Initials name={customer.name} className="size-12" />
+                <Initials name={customer.name} className="size-12 shrink-0" />
 
+                {/* The name gets the full width of the row. The pill used to sit
+                    beside it, which squeezed the column until names read "Ad…"
+                    and the phone number wrapped over three lines. */}
                 <span className="min-w-0 flex-1">
                   <span className="block truncate font-semibold">
                     {customer.name}
                   </span>
-                  <span className="block text-sm text-muted-foreground tabular-nums">
-                    {formatPhone(customer.phone)}
+                  <span className="mt-0.5 flex items-center gap-2">
+                    <span className="truncate text-sm text-muted-foreground tabular-nums">
+                      {formatPhone(customer.phone)}
+                    </span>
+                    <CustomerStatusPill status={customer.status} />
                   </span>
                 </span>
-
-                <CustomerStatusPill status={customer.status} />
 
                 <ChevronRight
                   className="size-4 shrink-0 text-muted-foreground/60"

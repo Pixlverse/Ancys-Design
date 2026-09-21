@@ -24,6 +24,9 @@ export interface ConfirmationCardProps {
   confirmedBy?: string
   billSentAt?: string
   publicUrl?: string
+  /** What the customer typed when asking for a change or declining. */
+  customerNote?: string
+  respondedAt?: string
 }
 
 export function ConfirmationCard({
@@ -35,6 +38,8 @@ export function ConfirmationCard({
   confirmedBy,
   billSentAt,
   publicUrl,
+  customerNote,
+  respondedAt,
 }: ConfirmationCardProps) {
   const [state, formAction, pending] = useActionState(
     sendForConfirmation,
@@ -45,8 +50,10 @@ export function ConfirmationCard({
     initialState
   )
 
-  const canSend = status === "draft" || status === "awaiting_confirmation"
-  const awaiting = status === "awaiting_confirmation"
+  const changesRequested = status === "changes_requested"
+  const canSend =
+    status === "draft" || status === "awaiting_confirmation" || changesRequested
+  const awaiting = status === "awaiting_confirmation" || changesRequested
 
   return (
     <Card>
@@ -67,6 +74,31 @@ export function ConfirmationCard({
           />
           <Step label="Final bill sent" at={billSentAt} />
         </ol>
+
+        {changesRequested || customerNote ? (
+          <div className="rounded-2xl bg-fuchsia-50 p-4 ring-1 ring-fuchsia-200">
+            <p className="text-sm font-semibold text-fuchsia-900">
+              {changesRequested
+                ? "The customer asked for a change"
+                : "The customer left a note"}
+              {respondedAt ? ` \u00b7 ${respondedAt}` : ""}
+            </p>
+            {customerNote ? (
+              <p className="mt-1 text-sm whitespace-pre-wrap text-fuchsia-900/80">
+                {customerNote}
+              </p>
+            ) : (
+              <p className="mt-1 text-sm text-fuchsia-900/70">
+                They did not say what. Give them a call.
+              </p>
+            )}
+            {changesRequested ? (
+              <p className="mt-2 text-xs text-fuchsia-900/70">
+                Edit the order, then send it again below.
+              </p>
+            ) : null}
+          </div>
+        ) : null}
 
         {state.error || billState.error ? (
           <Alert variant="destructive">

@@ -36,7 +36,7 @@ export default async function DashboardPage() {
   return (
     <div className="space-y-5">
       {/* The four things that decide what the shop does this morning. */}
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatTile
           icon={AlertTriangle}
           label="Overdue"

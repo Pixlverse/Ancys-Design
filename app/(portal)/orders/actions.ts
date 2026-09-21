@@ -249,12 +249,23 @@ async function buildItems(
       )
 
       if (!values.success) {
+        // Name the field and say what is wrong with it. "Check the
+        // measurements" sent staff hunting across a dozen boxes for a number
+        // the schema could already point at.
+        const labelByKey = new Map(fields.map((f) => [f.key, f.label]))
+        const detail = values.error.issues
+          .map((issue) => {
+            const key = String(issue.path[0] ?? "")
+            return `${labelByKey.get(key) ?? key}: ${issue.message}`
+          })
+          .join(". ")
+
         return {
           ok: false,
           state: {
             fieldErrors: {
               [`items.${index}.newMeasurements`]:
-                "Check the measurements for this garment.",
+                detail || "Check the measurements for this garment.",
             },
           },
         }

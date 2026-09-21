@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { ChevronRight, Shirt, Users } from "lucide-react"
+import { ChevronRight, IndianRupee, Shirt, Users } from "lucide-react"
 import type { Metadata } from "next"
 
 import { Card, CardContent } from "@/components/ui/card"
@@ -19,6 +19,13 @@ const SETTINGS_SECTIONS = [
     icon: Users,
     title: "Assignees",
     description: "The people work is given to. No logins, just names and numbers.",
+  },
+  {
+    href: "/settings/reports",
+    icon: IndianRupee,
+    title: "Sales report",
+    description:
+      "What the shop took this month, by garment — on screen or as a PDF.",
   },
 ]
 

@@ -84,7 +84,10 @@ export function publicOrderUrl(token: string): string {
 
 function shopSignature(): string {
   const shop = readShopIdentity()
-  const lines = [shop.name]
+  // WhatsApp renders *text* bold. It is the only formatting available here, so
+  // it is spent on the few things a customer actually looks for: the shop, the
+  // garment, the date and the money.
+  const lines = [`*${shop.name}*`]
   if (shop.address) lines.push(shop.address)
   if (shop.phone) lines.push(formatPhone(shop.phone))
   return lines.join("\n")
@@ -98,35 +101,55 @@ function itemLines(items: readonly MessagingOrderItem[]): string {
       if (item.clothLength) detail.push(`${item.clothLength}m cloth`)
       if (item.clothSource === "shop") detail.push("cloth from us")
 
-      return (
-        `• ${item.garmentTypeName}` +
+      // Every line starts hard left. The old bullet-plus-indent left the
+      // continuation lines hanging two spaces in, which is what made the
+      // message look ragged on a phone.
+      const name =
+        `*${item.garmentTypeName}` +
         (item.quantity > 1 ? ` × ${item.quantity}` : "") +
-        ` — ${formatMoney(item.rate * item.quantity)}` +
-        (detail.length > 0 ? `\n  ${detail.join(", ")}` : "") +
-        `\n  Ready by ${formatDate(item.dueDate, { withYear: true })}`
+        `*`
+
+      return (
+        `${name} — ${formatMoney(item.rate * item.quantity)}` +
+        (detail.length > 0 ? `\n${detail.join(" · ")}` : "") +
+        `\nReady by *${formatDate(item.dueDate, { withYear: true })}*`
       )
     })
-    .join("\n")
+    // A blank line between garments, so two orders do not run together.
+    .join("\n\n")
 }
 
 function billLines(order: MessagingOrder): string {
-  const lines = [`Subtotal: ${formatMoney(order.subtotal)}`]
-  if (order.discount > 0) lines.push(`Discount: -${formatMoney(order.discount)}`)
-  lines.push(`Total: ${formatMoney(order.total)}`)
+  const lines: string[] = []
+
+  // Subtotal is only worth showing when something was taken off it. On a plain
+  // order it repeated the total twice over, which is how "₹800" ended up on
+  // three consecutive lines.
+  if (order.discount > 0) {
+    lines.push(`Subtotal: ${formatMoney(order.subtotal)}`)
+    lines.push(`Discount: -${formatMoney(order.discount)}`)
+  }
+
+  lines.push(`*Total: ${formatMoney(order.total)}*`)
+
   if (order.advancePaid > 0) {
     lines.push(`Advance paid: -${formatMoney(order.advancePaid)}`)
   }
-  lines.push(
-    order.balance < 0
-      ? `To refund: ${formatMoney(Math.abs(order.balance))}`
-      : `Balance: ${formatMoney(order.balance)}`
-  )
+
+  // Without an advance the balance is the total, so printing it again says
+  // nothing. A refund is always worth spelling out.
+  if (order.balance < 0) {
+    lines.push(`*To refund: ${formatMoney(Math.abs(order.balance))}*`)
+  } else if (order.advancePaid > 0) {
+    lines.push(`*Balance: ${formatMoney(order.balance)}*`)
+  }
+
   return lines.join("\n")
 }
 
-function orderPageLine(order: MessagingOrder): string {
+function orderPageLine(order: MessagingOrder, label: string): string {
   if (!order.publicToken) return ""
-  return `\n\nPhotos, details and confirmation:\n${publicOrderUrl(order.publicToken)}`
+  return `\n\n${label}\n${publicOrderUrl(order.publicToken)}`
 }
 
 export function composeOrderConfirmation(
@@ -134,10 +157,10 @@ export function composeOrderConfirmation(
   customer: MessagingCustomer
 ): string {
   return (
-    `Hello ${customer.name}, here is your order ${order.orderNo} from ${readShopIdentity().name}.\n\n` +
+    `Hello ${customer.name}, here is your order *${order.orderNo}* from ${readShopIdentity().name}.\n\n` +
     `${itemLines(order.items)}\n\n` +
     `${billLines(order)}` +
-    `${orderPageLine(order)}\n\n` +
+    `${orderPageLine(order, "See the photos and confirm here:")}\n\n` +
     `Please confirm so we can begin.\n\n` +
     shopSignature()
   )
@@ -150,13 +173,13 @@ export function composeBill(
   const settled = order.balance <= 0
 
   return (
-    `Thank you ${customer.name} — your order ${order.orderNo} is confirmed and we have started work.\n\n` +
+    `Thank you ${customer.name} — your order *${order.orderNo}* is confirmed and we have started work.\n\n` +
     `${itemLines(order.items)}\n\n` +
     `${billLines(order)}\n\n` +
     (settled
       ? `Paid in full. Thank you.`
-      : `Please settle ${formatMoney(order.balance)} on collection.`) +
-    `${orderPageLine(order)}\n\n` +
+      : `Please settle *${formatMoney(order.balance)}* on collection.`) +
+    `${orderPageLine(order, "Photos and full details:")}\n\n` +
     shopSignature()
   )
 }
@@ -169,8 +192,8 @@ export function composeDueReminder(
   return (
     `Hello ${customer.name}, a reminder about your ${item.garmentTypeName} ` +
     `on order ${order.orderNo}.\n\n` +
-    `It is due on ${formatDate(item.dueDate, { withYear: true })}.` +
-    `${orderPageLine(order)}\n\n` +
+    `It is due on *${formatDate(item.dueDate, { withYear: true })}*.` +
+    `${orderPageLine(order, "Photos and full details:")}\n\n` +
     shopSignature()
   )
 }
@@ -181,13 +204,13 @@ export function composeReadyForPickup(
 ): string {
   const balance =
     order.balance > 0
-      ? `\n\nBalance to settle: ${formatMoney(order.balance)}.`
+      ? `\n\n*Balance to settle: ${formatMoney(order.balance)}*.`
       : ""
 
   return (
     `Hello ${customer.name}, your order ${order.orderNo} is ready to collect.\n\n` +
     `${itemLines(order.items)}${balance}` +
-    `${orderPageLine(order)}\n\n` +
+    `${orderPageLine(order, "Photos and full details:")}\n\n` +
     shopSignature()
   )
 }

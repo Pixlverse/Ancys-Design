@@ -394,6 +394,12 @@ export default async function OrderPage({
                 ? `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/o/${order.confirmation.publicToken}`
                 : undefined
             }
+            customerNote={order.confirmation.customerNote}
+            respondedAt={
+              order.confirmation.respondedAt
+                ? formatDate(order.confirmation.respondedAt, { withYear: true })
+                : undefined
+            }
           />
 
           <Card>

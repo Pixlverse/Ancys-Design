@@ -53,6 +53,10 @@ export interface OrderConfirmation {
   /** Random 32 characters. Never the order id — see CLAUDE.md section 7. */
   publicToken?: string
   viewedAt?: Date
+  /** When the customer answered on the public page, either way. */
+  respondedAt?: Date
+  /** What they typed when asking for a change or declining. Their words. */
+  customerNote?: string
   confirmedAt?: Date
   /** When the final bill was sent — the second message, after confirmation. */
   billSentAt?: Date
@@ -140,6 +144,8 @@ const orderConfirmationSchema = new Schema<OrderConfirmation>(
     channel: { type: String },
     publicToken: { type: String },
     viewedAt: { type: Date },
+    respondedAt: { type: Date },
+    customerNote: { type: String },
     confirmedAt: { type: Date },
     billSentAt: { type: Date },
     confirmedBy: { type: String },

@@ -37,6 +37,30 @@ describe("the transition tables", () => {
     expect(ORDER_TRANSITIONS.delivered).toEqual([])
     expect(ORDER_TRANSITIONS.cancelled).toEqual([])
   })
+
+  it("lets a customer ask for a change, and lets staff send it again", () => {
+    // The customer's two other answers, from the page they were sent.
+    expect(canTransitionOrder("awaiting_confirmation", "changes_requested")).toBe(
+      true
+    )
+    expect(canTransitionOrder("awaiting_confirmation", "cancelled")).toBe(true)
+
+    // Staff edit, then re-send: the order goes back onto the customer's court.
+    expect(canTransitionOrder("changes_requested", "awaiting_confirmation")).toBe(
+      true
+    )
+    // Or the customer rings to say it was fine after all.
+    expect(canTransitionOrder("changes_requested", "confirmed")).toBe(true)
+
+    // It is not a workbench state: no jumping straight to the bench or the door.
+    expect(canTransitionOrder("changes_requested", "in_progress")).toBe(false)
+    expect(canTransitionOrder("changes_requested", "ready")).toBe(false)
+    expect(canTransitionOrder("changes_requested", "delivered")).toBe(false)
+
+    // And it cannot be reached from work already under way.
+    expect(canTransitionOrder("confirmed", "changes_requested")).toBe(false)
+    expect(canTransitionOrder("in_progress", "changes_requested")).toBe(false)
+  })
 })
 
 describe("canTransitionOrder", () => {

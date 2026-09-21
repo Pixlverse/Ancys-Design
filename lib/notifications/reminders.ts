@@ -44,6 +44,8 @@ export async function generateReminders(now: Date = new Date()): Promise<Reminde
     due_tomorrow: 0,
     overdue: 0,
     awaiting_confirmation: 0,
+    // Raised by the customer on the public order page, not by this job.
+    customer_responded: 0,
   }
 
   // --- Garments with a due date worth flagging -----------------------------

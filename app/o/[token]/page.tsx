@@ -1,4 +1,3 @@
-import { notFound } from "next/navigation"
 import type { Metadata } from "next"
 
 import { ConfirmPanel } from "./ConfirmPanel"
@@ -31,7 +30,9 @@ export default async function PublicOrderPage({
   params: Promise<{ token: string }>
 }) {
   const { token } = await params
-  if (!isPublicToken(token)) notFound()
+
+  // A token that is the wrong shape never reaches the database.
+  if (!isPublicToken(token)) return <LinkClosed />
 
   await connectToDatabase()
   const order = await Order.findOne({
@@ -39,7 +40,11 @@ export default async function PublicOrderPage({
     isDeleted: false,
   }).lean()
 
-  if (!order) notFound()
+  // Cancelling or delivering an order clears its token, so a customer who has
+  // just declined lands here. A bare 404 reads as "something broke" when in
+  // fact their answer was recorded. Every unresolvable token gets the same
+  // words, so this distinguishes nothing for anyone guessing at links.
+  if (!order) return <LinkClosed />
 
   const customer = await Customer.findById(order.customerId)
     .select({ name: 1 })
@@ -126,6 +131,11 @@ export default async function PublicOrderPage({
       <ConfirmPanel
         token={token}
         alreadyConfirmed={confirmed}
+        alreadyResponded={
+          // Declining clears the token, so a declined order can never load
+          // here — only a change request survives to be shown again.
+          order.status === "changes_requested" ? "changes_requested" : undefined
+        }
         shopPhone={shop.phone}
       />
 
@@ -153,5 +163,31 @@ function Row({
       </dt>
       <dd className={`tabular-nums ${strong ? "font-medium" : ""}`}>{value}</dd>
     </div>
+  )
+}
+
+/** Shown for any token that does not resolve: expired, revoked or invented. */
+function LinkClosed() {
+  const shop = readShopIdentity()
+
+  return (
+    <main className="mx-auto flex min-h-svh w-full max-w-xl flex-col justify-center gap-4 bg-background px-4 py-8 text-center">
+      <div className="rounded-3xl bg-card p-8 tile-float">
+        <p className="text-lg font-medium">This link is no longer active</p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          If you have just confirmed or cancelled your order, it has been
+          recorded and there is nothing more to do.
+        </p>
+        {shop.phone ? (
+          <a
+            href={`tel:${shop.phone}`}
+            className="mt-5 inline-flex h-12 w-full items-center justify-center rounded-full px-6 text-base font-medium brand-fill"
+          >
+            Call {formatPhone(shop.phone)}
+          </a>
+        ) : null}
+      </div>
+      <p className="text-xs text-muted-foreground">{shop.name}</p>
+    </main>
   )
 }

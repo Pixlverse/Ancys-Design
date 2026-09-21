@@ -1,14 +1,6 @@
-import path from "node:path"
+import { Document, Page, StyleSheet, Text, View } from "@react-pdf/renderer"
 
-import {
-  Document,
-  Font,
-  Page,
-  StyleSheet,
-  Text,
-  View,
-} from "@react-pdf/renderer"
-
+import { PDF_FONT_FAMILY, registerPdfFonts } from "./pdf-fonts"
 import { formatDate } from "@/lib/dates"
 import { formatMoney } from "@/lib/money"
 import { formatPhone } from "@/lib/phone"
@@ -23,27 +15,9 @@ import type { ShopIdentity } from "@/lib/shop"
  * where the currency should be. It is the same family the portal uses on screen,
  * so a printed bill and the order page look like the same shop.
  */
-const FONT_FAMILY = "EncodeSansSemiExpanded"
-
-let fontsRegistered = false
-
-function registerFonts(): void {
-  if (fontsRegistered) return
-  const dir = path.join(process.cwd(), "assets", "fonts")
-  Font.register({
-    family: FONT_FAMILY,
-    fonts: [
-      { src: path.join(dir, "EncodeSansSemiExpanded-Regular.ttf"), fontWeight: 400 },
-      { src: path.join(dir, "EncodeSansSemiExpanded-SemiBold.ttf"), fontWeight: 600 },
-      { src: path.join(dir, "EncodeSansSemiExpanded-Bold.ttf"), fontWeight: 700 },
-    ],
-  })
-  fontsRegistered = true
-}
-
 const styles = StyleSheet.create({
   page: {
-    fontFamily: FONT_FAMILY,
+    fontFamily: PDF_FONT_FAMILY,
     fontSize: 10,
     fontWeight: 400,
     paddingTop: 40,
@@ -146,7 +120,7 @@ export interface InvoiceProps {
 }
 
 export function InvoiceDocument(props: InvoiceProps) {
-  registerFonts()
+  registerPdfFonts()
 
   const {
     shop,

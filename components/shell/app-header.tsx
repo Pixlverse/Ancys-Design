@@ -10,7 +10,8 @@ import { Notification } from "@/models/notification"
  *
  * On a phone it carries the mark and nothing else — the greeting was being
  * truncated to "Hell…" between the logo and the controls, which is worse than
- * no greeting at all.
+ * no greeting at all. It keeps the mark up to xl, because the rail that
+ * otherwise shows it is hidden on tablets.
  */
 export async function AppHeader({
   user,
@@ -23,11 +24,11 @@ export async function AppHeader({
   const unread = await Notification.countDocuments({ isRead: false })
 
   return (
-    <header className="sticky top-0 z-30 flex min-h-16 items-center justify-between gap-4 rounded-3xl bg-card px-4 py-2.5 tile-float md:top-4 md:px-6">
+    <header className="sticky top-0 z-30 flex min-h-16 items-center justify-between gap-4 rounded-3xl bg-card px-4 py-2.5 tile-float md:px-6 xl:top-4">
       <div className="flex min-w-0 items-center gap-3">
         {/* The rail is hidden on phones, so the mark lives here instead. On a
             light header the white artwork needs a dark chip behind it. */}
-        <span className="flex items-center rounded-xl bg-sidebar px-2.5 py-2 md:hidden">
+        <span className="flex items-center rounded-xl bg-sidebar px-2.5 py-2 xl:hidden">
           <Image
             src="/images/ancys-logo.png"
             alt="Ancy's"

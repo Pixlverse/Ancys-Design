@@ -16,7 +16,15 @@ import type { OrderItemStatus, OrderStatus } from "@/schemas/order"
 export const ORDER_TRANSITIONS: Record<OrderStatus, readonly OrderStatus[]> = {
   draft: ["awaiting_confirmation", "confirmed", "cancelled"],
   // Back to draft so staff can fix an order the customer queried.
-  awaiting_confirmation: ["confirmed", "draft", "cancelled"],
+  awaiting_confirmation: [
+    "confirmed",
+    "changes_requested",
+    "draft",
+    "cancelled",
+  ],
+  // The customer asked for a change. Staff edit and send it again, or the
+  // customer rings to say it is fine after all.
+  changes_requested: ["awaiting_confirmation", "confirmed", "draft", "cancelled"],
   confirmed: ["in_progress", "ready", "cancelled"],
   in_progress: ["ready", "cancelled"],
   ready: ["delivered", "in_progress"],
@@ -134,13 +142,6 @@ export async function transitionOrder(
 
   order.status = to
 
-  // A delivered or cancelled order's public link stops working: the token is the
-  // only protection on that page, and there is nothing left for the customer to
-  // confirm (CLAUDE.md section 7).
-  if (to === "delivered" || to === "cancelled") {
-    order.confirmation.publicToken = undefined
-  }
-
   order.statusHistory.push({
     from,
     to,
@@ -150,6 +151,17 @@ export async function transitionOrder(
   })
 
   if (context.set) Object.assign(order, context.set)
+
+  // A delivered or cancelled order's public link stops working: the token is the
+  // only protection on that page, and there is nothing left for the customer to
+  // confirm (CLAUDE.md section 7).
+  //
+  // This runs *after* context.set on purpose. Callers pass the confirmation
+  // object wholesale — spreading the existing one so they do not wipe sentAt —
+  // which would otherwise hand the token straight back.
+  if (to === "delivered" || to === "cancelled") {
+    order.confirmation.publicToken = undefined
+  }
 
   await order.save()
   return { status: to, orderStatusChanged: true }

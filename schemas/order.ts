@@ -7,6 +7,9 @@ import { rupeesToPaiseSchema } from "@/schemas/money"
 export const ORDER_STATUSES = [
   "draft",
   "awaiting_confirmation",
+  // The customer looked at the order and asked for something to change. Staff
+  // edit it, then send it again. Distinct from draft: it has been out already.
+  "changes_requested",
   "confirmed",
   "in_progress",
   "ready",

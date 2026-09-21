@@ -204,7 +204,8 @@ describe("the two-stage messages", () => {
     const result = await provider.sendBill(withCloth, customer)
     if (result.status !== "manual") throw new Error("expected a manual result")
     expect(result.body).toContain("is confirmed and we have started work")
-    expect(result.body).toContain("Please settle ₹1,600 on collection")
+    // The amount is bold: it is the one number they need to act on.
+    expect(result.body).toContain("Please settle *₹1,600* on collection")
   })
 
   it("says paid in full when nothing is outstanding", async () => {

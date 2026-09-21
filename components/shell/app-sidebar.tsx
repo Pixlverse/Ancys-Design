@@ -10,13 +10,14 @@ import { NAV_ITEMS, isActiveNav } from "./nav-items"
 /**
  * A floating rail rather than a flush column: it sits inset from the page edge
  * with its own radius, so the shell reads as a panel the work lives inside.
- * Hidden on phones, where MobileTabBar takes over.
+ * Hidden below xl, where MobileTabBar takes over: on a tablet the rail cost
+ * a third of the width and squeezed the lists it sat beside.
  */
 export function AppSidebar() {
   const pathname = usePathname()
 
   return (
-    <aside className="sticky top-4 hidden h-[calc(100svh-2rem)] w-64 shrink-0 flex-col rounded-3xl bg-sidebar p-3 tile-float md:flex">
+    <aside className="sticky top-4 hidden h-[calc(100svh-2rem)] w-64 shrink-0 flex-col rounded-3xl bg-sidebar p-3 tile-float xl:flex">
       {/* The shop's own mark. It is white artwork, which is why the rail is
           dark — the two were chosen together. */}
       <Link href="/dashboard" className="block px-3 py-5">

@@ -17,10 +17,10 @@ export default async function PortalLayout({
   if (!session?.user) redirect(LOGIN_PATH)
 
   return (
-    <div className="min-h-svh bg-background md:flex md:gap-5 md:p-5">
+    <div className="min-h-svh bg-background xl:flex xl:gap-5 xl:p-5">
       <AppSidebar />
 
-      <div className="flex min-w-0 flex-1 flex-col gap-5 p-3 md:p-0">
+      <div className="flex min-w-0 flex-1 flex-col gap-4 p-3 sm:gap-5 sm:p-4 xl:p-0">
         <AppHeader
           greeting={`Hello ${(session.user.name ?? "there").split(" ")[0]}`}
           user={{
@@ -29,8 +29,9 @@ export default async function PortalLayout({
             role: session.user.role,
           }}
         />
-        {/* Bottom padding on phones keeps content clear of the floating bar. */}
-        <main className="flex-1 pb-28 md:pb-2">{children}</main>
+        {/* Bottom padding keeps content clear of the floating bar, which now
+            carries the navigation on tablets too. */}
+        <main className="flex-1 pb-28 xl:pb-2">{children}</main>
       </div>
 
       <MobileTabBar />

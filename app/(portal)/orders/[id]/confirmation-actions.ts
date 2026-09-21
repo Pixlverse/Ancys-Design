@@ -53,16 +53,29 @@ export async function sendForConfirmation(
     // the customer is already looking at.
     const publicToken = existing.confirmation.publicToken ?? createPublicToken()
 
-    if (existing.status === "draft") {
+    // Both of these move the order onto the customer's court. Re-sending an
+    // order that is already awaiting confirmation is not a status change, so it
+    // falls through to the plain update below.
+    if (
+      existing.status === "draft" ||
+      existing.status === "changes_requested"
+    ) {
       await transitionOrder(orderId, "awaiting_confirmation", {
         userId: session.user.id,
-        note: "Sent to the customer",
+        note:
+          existing.status === "changes_requested"
+            ? "Sent again after the requested changes"
+            : "Sent to the customer",
         set: {
           confirmation: {
             ...existing.confirmation,
             sentAt: new Date(),
             channel: provider.channel,
             publicToken,
+            // The note has been acted on; clear it so the next answer is not
+            // confused with the last one.
+            customerNote: undefined,
+            respondedAt: undefined,
           },
         },
       })

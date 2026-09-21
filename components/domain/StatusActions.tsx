@@ -84,12 +84,14 @@ export function ItemStageTracker({
 export function OrderStageTracker({ status }: { status: OrderStatus }) {
   const current = ORDER_STAGE_ORDER.indexOf(status)
 
-  if (status === "cancelled") {
+  // Neither of these is a step along the line, so the tracker shows the state
+  // on its own rather than pretending the order is back at the start.
+  if (status === "cancelled" || status === "changes_requested") {
     return (
       <span
-        className={`inline-flex rounded-full px-3 py-1.5 text-xs font-semibold ring-1 ${ORDER_STATUS_TONES.cancelled}`}
+        className={`inline-flex rounded-full px-3 py-1.5 text-xs font-semibold ring-1 ${ORDER_STATUS_TONES[status]}`}
       >
-        Cancelled
+        {ORDER_STATUS_LABELS[status]}
       </span>
     )
   }

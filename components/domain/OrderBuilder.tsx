@@ -316,6 +316,17 @@ export function OrderBuilder({
                       <Label htmlFor={`${item.rowId}-garment`}>Garment</Label>
                       <select
                         id={`${item.rowId}-garment`}
+                        // React resets the form after a server action returns.
+                        // A native reset drops a <select> back to its first
+                        // option, and React does not re-apply the value because
+                        // the prop never changed — so a failed submit left this
+                        // reading "Choose a garment…" while the order still had
+                        // one. Re-syncing on every commit repairs that.
+                        ref={(el) => {
+                          if (el && el.value !== item.garmentTypeId) {
+                            el.value = item.garmentTypeId
+                          }
+                        }}
                         value={item.garmentTypeId}
                         onChange={(event) =>
                           chooseGarmentType(item.rowId, event.target.value)
