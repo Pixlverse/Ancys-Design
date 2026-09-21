@@ -2,7 +2,10 @@
 # Netlify itself — nothing to add to package.json.
 [build]
   command = "npm run build"
-  publish = ".next"
+  # No `publish` on purpose. The Next.js Runtime sets it itself and serves
+  # prerendered pages from Netlify Blobs; pinning it to ".next" by hand broke
+  # that, and every static route (/, /icon.png, /favicon.ico, the 404 page)
+  # returned 502 while every dynamic route was fine.
 
 [build.environment]
   # Next 15 needs 18.18+; match what the project is developed against.
