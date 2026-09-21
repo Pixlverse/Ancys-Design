@@ -33,6 +33,14 @@ export async function connectToDatabase(): Promise<typeof mongoose> {
       .connect(uri, {
         // Fail fast instead of silently queueing writes when the pool is down.
         bufferCommands: false,
+        // Each serverless instance opens its own pool. Mongoose defaults to 100
+        // connections per instance, and an Atlas M0 cluster allows 500 in total
+        // — a handful of concurrent functions would exhaust the cluster.
+        maxPoolSize: 10,
+        // Must sit inside the host's function budget. The default is 30s, which
+        // is longer than Netlify's 10s limit, so an unreachable cluster killed
+        // the function with a generic error before Mongo could report why.
+        serverSelectionTimeoutMS: 8000,
       })
       .catch((error: unknown) => {
         // Let the next call retry rather than caching a rejected promise forever.
