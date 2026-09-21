@@ -18,7 +18,7 @@
   # Scanning stays ON for everything else, which is the point: MONGODB_URI,
   # AUTH_SECRET, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET and CRON_SECRET are
   # still checked, and were verified absent from the build output.
-  SECRETS_SCAN_OMIT_KEYS = "SHOP_NAME,SHOP_PHONE,CLOUDINARY_UPLOAD_FOLDER,NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,NEXT_PUBLIC_APP_URL,NEXTAUTH_URL"
+  SECRETS_SCAN_OMIT_KEYS = "SHOP_NAME,SHOP_PHONE,CLOUDINARY_UPLOAD_FOLDER,NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,NEXT_PUBLIC_APP_URL,NEXTAUTH_URL,MESSAGING_PROVIDER"
 
 # Netlify's scheduled functions cannot call a Next.js route handler directly,
 # so /api/cron/reminders is triggered externally (cron-job.org) with the
