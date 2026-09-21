@@ -1,4 +1,4 @@
-import mongoose from "mongoose"
+import mongoose from "mongoose";
 
 /**
  * Mongoose keeps an internal connection pool, but Next.js hot reload throws away
@@ -6,26 +6,26 @@ import mongoose from "mongoose"
  * open a fresh pool and Atlas would run out of connections within a few saves.
  */
 interface MongooseCache {
-  conn: typeof mongoose | null
-  promise: Promise<typeof mongoose> | null
+  conn: typeof mongoose | null;
+  promise: Promise<typeof mongoose> | null;
 }
 
 declare global {
-  var __mongooseCache: MongooseCache | undefined
+  var __mongooseCache: MongooseCache | undefined;
 }
 
 const cache: MongooseCache = globalThis.__mongooseCache ?? {
   conn: null,
   promise: null,
-}
-globalThis.__mongooseCache = cache
+};
+globalThis.__mongooseCache = cache;
 
 export async function connectToDatabase(): Promise<typeof mongoose> {
-  if (cache.conn) return cache.conn
+  if (cache.conn) return cache.conn;
 
-  const uri = process.env.MONGODB_URI
+  const uri = process.env.MONGODB_URI;
   if (!uri) {
-    throw new Error("MONGODB_URI is not set. Copy .env.example to .env.local.")
+    throw new Error("MONGODB_URI is not set. Copy .env.example to .env.local.");
   }
 
   if (!cache.promise) {
@@ -44,19 +44,19 @@ export async function connectToDatabase(): Promise<typeof mongoose> {
       })
       .catch((error: unknown) => {
         // Let the next call retry rather than caching a rejected promise forever.
-        cache.promise = null
-        throw error
-      })
+        cache.promise = null;
+        throw error;
+      });
   }
 
-  cache.conn = await cache.promise
-  return cache.conn
+  cache.conn = await cache.promise;
+  return cache.conn;
 }
 
 /** Closes the pool. For scripts and tests only — never call this from a request. */
 export async function disconnectFromDatabase(): Promise<void> {
-  if (!cache.conn) return
-  await cache.conn.disconnect()
-  cache.conn = null
-  cache.promise = null
+  if (!cache.conn) return;
+  await cache.conn.disconnect();
+  cache.conn = null;
+  cache.promise = null;
 }
