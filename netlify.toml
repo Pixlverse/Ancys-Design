@@ -1,0 +1,14 @@
+# Netlify build settings. The Next.js runtime is detected and installed by
+# Netlify itself — nothing to add to package.json.
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  # Next 15 needs 18.18+; match what the project is developed against.
+  NODE_VERSION = "22"
+
+# Netlify's scheduled functions cannot call a Next.js route handler directly,
+# so /api/cron/reminders is triggered externally (cron-job.org) with the
+# CRON_SECRET bearer token the route already checks. vercel.json's cron block
+# is ignored here and kept only for a future move back to Vercel.
