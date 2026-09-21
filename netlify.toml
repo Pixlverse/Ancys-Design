@@ -27,3 +27,9 @@
 # so /api/cron/reminders is triggered externally (cron-job.org) with the
 # CRON_SECRET bearer token the route already checks. vercel.json's cron block
 # is ignored here and kept only for a future move back to Vercel.
+
+[functions]
+  # Netlify bundles every route into a single server handler. pdfkit's standard
+  # fonts are required at runtime, so neither Next's tracer nor Netlify's
+  # bundler includes them by inference — they have to be named.
+  included_files = ["node_modules/pdfkit/js/standard-fonts/**"]
