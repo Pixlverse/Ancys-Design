@@ -1,0 +1,322 @@
+You are building an internal admin portal for a tailoring / fashion store. Read
+`@CLAUDE.md` in full before doing anything — it contains the stack, the complete
+data model, and ten hard rules that apply to every line of code you write.
+
+## How we work
+
+This is a six-phase build. Work through it **in order, one phase at a time**.
+
+1. At the start of each phase, produce a plan and **wait for my explicit approval**
+   before writing any code.
+2. Within a phase, stop at each numbered checkpoint, report what you did, and wait.
+3. Never start the next phase on your own. When a phase's acceptance criteria are
+   met, run `npm run typecheck` and `npm run build`, confirm both pass, make one
+   conventional commit, and then stop and tell me the phase is complete.
+4. If a task conflicts with `CLAUDE.md`, or `CLAUDE.md` looks wrong, say so rather
+   than working around it silently.
+5. Build exactly what each phase specifies. If you think something is missing, tell
+   me and let me decide. Do not add it unasked.
+6. No documentation files, READMEs, or summary markdown unless I ask.
+7. No new packages without asking first and explaining why the existing stack
+   can't do it.
+8. Never claim a task is done on unverified code. Run the checks.
+
+Acknowledge that you've read `CLAUDE.md`, then give me the Phase 0 plan.
+
+---
+
+# PHASE 0 — Foundations
+
+**Goal:** a deployable, authenticated, empty portal. No business logic.
+
+### 0.1 Project scaffold and core utilities
+
+- Next.js 15 App Router, TypeScript strict, Tailwind, shadcn/ui initialised
+- `lib/db.ts` — Mongoose connection singleton cached on `globalThis` so it survives
+  hot reload
+- `lib/money.ts` — paise ↔ rupee conversion and an Indian digit-grouping display
+  formatter, with unit tests
+- `lib/phone.ts` — E.164 normalisation handling `9876543210`, `09876543210`,
+  `+91 98765 43210`, with unit tests
+- `lib/dates.ts` — `startOfDayIST`, `endOfDayIST`, `formatDate`, `daysUntil`,
+  with unit tests
+- Vitest configured; `.env.example` listing every variable the project will need
+
+**Checkpoint — stop and report.**
+
+### 0.2 Authentication
+
+- Auth.js v5, credentials provider, bcrypt password hashing
+- JWT session carrying `userId` and `role`
+- `models/user.ts` with roles `owner | staff | tailor`
+- Middleware protecting everything under `/(portal)`, redirecting to `/login`
+- A `requireRole(role)` helper for route handlers and server actions
+- Seed script creating one owner account from env vars
+- Minimal login page
+
+**Checkpoint — stop and report.**
+
+### 0.3 Portal shell
+
+Sidebar navigation (Customers, Orders, Calendar, Settings), header with the
+logged-in user and sign-out, responsive layout collapsing to a bottom tab bar on
+mobile. Routes render placeholder empty states that say what to do next.
+
+**Phase 0 acceptance:** I can log in at a real URL, see the shell, and log out.
+Typecheck and build pass. Utility tests pass.
+
+---
+
+# PHASE 1 — Master data
+
+**Goal:** the shop can store its rate card and take measurements. Useful on its own.
+
+### 1.1 Garment types — the rate card and the measurement form definitions
+
+Model, zod schema, and `/settings/garment-types`. The owner can:
+
+- create a garment type with a name and a base rate entered in rupees, stored as
+  integer paise
+- define its `measurementFields` — add, remove, reorder (up/down buttons, not drag),
+  set label, key, unit and required flag
+- deactivate a type without deleting it
+
+This editor is what keeps garment names out of the codebase. There must be no
+TypeScript union of garment names and no `if (garment === 'blouse')` anywhere,
+now or later.
+
+Seed: Blouse ₹450, Churidar Set ₹800, Pant ₹600, Saree Falls ₹150, each with
+measurement fields appropriate to that garment.
+
+**Checkpoint — stop and report.**
+
+### 1.2 Customers
+
+- `/customers` — searchable list. Phone match first, name second. Partial phone
+  input works, ignoring spaces and `+91`.
+- `/customers/new` — normalise phone via `lib/phone.ts`. On duplicate phone, show
+  the existing customer and offer to open it rather than creating a second record.
+- `/customers/[id]` — contact details, orders section (empty for now), measurements
+  section (empty for now)
+- New customers are created with `status: 'lead'`
+
+**Checkpoint — stop and report.**
+
+### 1.3 Measurements
+
+- `models/measurementSet.ts` per CLAUDE.md
+- `components/domain/MeasurementForm.tsx` — takes a `garmentTypeId`, renders one
+  numeric input per `measurementField` in order, decimal inches allowed, mobile
+  numeric keyboard. **Plan this component's interface with me before writing it** —
+  it gets reused inside the order flow in Phase 2.
+- On the customer page: "Take measurements" → pick garment type → form. If a set
+  already exists for that garment type, prefill with the latest values and show
+  when they were taken.
+- Saving always **inserts** a new set. Never update an existing one.
+- Measurement history per garment type, newest first, marking values that changed
+  from the previous set.
+
+**Phase 1 acceptance:** I can add a new garment type with custom measurement
+fields from the UI, create a customer, and record measurements against them. No
+garment name appears in the source code.
+
+---
+
+# PHASE 2 — Orders and billing
+
+**Goal:** the portal replaces the paper order book. This is the most valuable phase.
+
+### 2.1 Order model
+
+Orders with embedded items exactly as specified in CLAUDE.md, plus `orderNo`
+generation in `YYYY-NNNN` form, sequential per year and safe under concurrent
+creation. Zod schemas. Tests for the number generator.
+
+**Checkpoint — stop and report.**
+
+### 2.2 Order creation flow (no images yet)
+
+`/orders/new`:
+
+1. Pick a customer by phone search, or create one inline
+2. Add one or more items. Per item: garment type (rate auto-fills, editable for
+   this order), quantity, measurements (reuse the customer's latest set for that
+   garment type or take a new one inline with `MeasurementForm`), cloth source
+   (customer-brought or shop-provided), free-text note, due date
+3. Running bill panel updating live as items change
+4. Discount and advance payment fields
+5. Save as draft
+
+Snapshot `garmentTypeName` and `rate` onto each item at save time — changing the
+rate card later must never alter a past order's price.
+
+**Checkpoint — stop and report.**
+
+### 2.3 Images
+
+Signed Cloudinary uploads, signature generated server-side, API secret never
+reaching the browser. Per item: cloth photo, reference image, pattern image,
+multiple of each kind. Camera or gallery, multiple at once, upload progress,
+remove before save. Store `url`, `publicId`, `kind`. Display via Cloudinary
+transforms — thumbnails in grids, larger on tap, never the original file in a list.
+Handle oversized files, wrong types, and going offline mid-upload.
+
+**Checkpoint — stop and report.**
+
+### 2.4 Order listing, detail, and status
+
+- `/orders` — filters by status and due-date range, sorted by soonest due date.
+  Row shows order no, customer, item count, total, balance, promised date, status.
+- `/orders/[id]` — items as cards with photos, measurements used, notes, due date,
+  per-item status; bill summary; edit and status actions.
+- `lib/orders/transition.ts` — the single place any status changes. Validates the
+  transition is legal, records who and when, and derives the parent order status
+  from item statuses. No `order.status = …` anywhere else in the codebase.
+
+**Checkpoint — stop and report.**
+
+### 2.5 Invoice PDF
+
+`@react-pdf/renderer`, must run on Vercel's serverless runtime with no headless
+browser. Shop header, order number and date, customer name and phone, line items
+(garment, qty, rate, amount), subtotal, discount, total, advance, balance, due
+dates. Served from `/api/orders/[id]/invoice` as `application/pdf`, with a
+download button on the order page.
+
+**Phase 2 acceptance:** I can take a complete multi-item order with photos and
+measurements, see the bill calculate correctly, and download a clean invoice.
+
+---
+
+# PHASE 3 — Confirmation flow
+
+**Goal:** customers confirm orders over WhatsApp, with no dependency on Meta.
+
+Read CLAUDE.md section 7 carefully. This phase is about the abstraction as much as
+the feature — if the boundary is wrong here, Phase 5 becomes a rewrite.
+
+### 3.1 Messaging abstraction
+
+`lib/messaging/` exporting the `MessagingProvider` interface from CLAUDE.md, plus
+`providers/manual.ts` which composes a plain-text WhatsApp message (shop contact
+details, each item with garment / qty / rate / due date, bill totals, link to the
+public order page) and returns a `wa.me` URL. Provider chosen by the
+`MESSAGING_PROVIDER` env var, defaulting to manual.
+
+No code outside `lib/messaging/` may reference `wa.me`, Meta, or templates.
+**Show me the interface signatures before implementing.**
+
+**Checkpoint — stop and report.**
+
+### 3.2 Public order page
+
+`/o/[token]` — no authentication, access by a cryptographically random 32-character
+token stored on the order. The order `_id` never appears in the URL.
+
+Read-only, mobile-first: shop header, customer name, each item with cloth and
+reference photos, notes, due date, prices, totals, advance, balance. Two buttons —
+"Confirm this order" records the confirmation server-side and thanks them;
+"I'd like a change" shows the shop's phone number. Tokens are generated when the
+order is first sent and invalidated on delivery or cancellation.
+
+**Checkpoint — stop and report.**
+
+### 3.3 Wiring it up
+
+- "Send for confirmation" on a draft: generates the token, moves the order to
+  `awaiting_confirmation`, opens the `wa.me` link with the message prefilled
+- Confirmation state shown on the order: sent at, viewed at, confirmed at
+- Manual "Mark as confirmed" for customers who reply in chat instead of tapping,
+  recording which staff member marked it
+- On confirmation: customer `lead` → `active`, order → `confirmed`
+- Everything goes through `lib/orders/transition.ts`
+
+**Phase 3 acceptance:** I can send an order for confirmation from my phone, open
+the link as a customer, confirm it, and watch the status change in the portal.
+
+---
+
+# PHASE 4 — Calendar and reminders
+
+**Goal:** nothing gets forgotten.
+
+### 4.1 Calendar
+
+`/calendar` with month (default), week and day views. Every order **item** with a
+due date is a chip showing customer name and garment type. Colours: overdue red,
+due today amber, within 3 days yellow, later neutral, delivered faded. Per-day
+workload count in the day cell header. Filters by status, garment type, assigned
+tailor. Chip click opens the order; day click lists that day's items with phone
+numbers and one-tap calling.
+
+All day-boundary logic goes through `lib/dates.ts` in IST — no raw `new Date()`
+comparisons. **Plan the query first**: rendering one month must not load every
+order in the database.
+
+**Checkpoint — stop and report.**
+
+### 4.2 Reminder engine
+
+`models/notification.ts` per CLAUDE.md. A job at `/api/cron/reminders` protected by
+a `CRON_SECRET` bearer token, running daily, creating notifications for items due
+in 3 days, due tomorrow, overdue, and orders sitting in `awaiting_confirmation`
+over 48 hours. Idempotent — twice in one day creates no duplicates. `vercel.json`
+scheduling it for 07:00 IST. Notification bell in the header with unread count,
+and a `/notifications` page with mark-as-read.
+
+Send no WhatsApp messages from this job yet.
+
+**Phase 4 acceptance:** the calendar shows real due dates correctly coloured, and
+the cron job creates the right notifications when I trigger it manually.
+
+---
+
+# PHASE 5 — WhatsApp Cloud API
+
+**Do not start this phase until I tell you Meta business verification is approved.**
+
+### 5.1 Cloud API provider
+
+`lib/messaging/providers/cloud-api.ts` sending approved templates:
+`order_confirmation` (image header, Confirm / Request changes buttons),
+`order_bill` (PDF document attachment), `due_reminder`, `ready_for_pickup`.
+Config from env: `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_ACCESS_TOKEN`,
+`WHATSAPP_BUSINESS_ACCOUNT_ID`, `WHATSAPP_WEBHOOK_VERIFY_TOKEN`,
+`WHATSAPP_APP_SECRET`. Retry 5xx with backoff, log every send with its message id,
+store outbound message ids on the order for webhook correlation.
+
+It must satisfy the identical `MessagingProvider` interface with **zero changes to
+any calling code**. If you find yourself needing to change a caller, stop and tell
+me — that means the Phase 3 abstraction was wrong.
+
+**Checkpoint — stop and report.**
+
+### 5.2 Webhook
+
+`/api/webhooks/whatsapp`. GET handles Meta's `hub.challenge`. POST verifies the
+`X-Hub-Signature-256` HMAC against `WHATSAPP_APP_SECRET` and rejects failures.
+This endpoint is public — treat every payload as hostile and validate with zod
+before use. Button replies map back to an order via the tracked message id;
+"Confirm" calls the **same** confirmation function the public page uses, not a
+duplicate. Store delivery and read receipts. Always return 200 quickly, do slow
+work after responding, and make handling idempotent because Meta retries.
+
+**Checkpoint — stop and report.**
+
+### 5.3 Switch on customer messaging
+
+Reminder cron sends via the messaging provider, with per-notification-type toggles
+in settings so the owner can turn customer messages on or off without a deploy.
+Add a messaging log under settings showing every message sent: customer, type,
+timestamp, status, cost category.
+
+**Phase 5 acceptance:** a customer taps Confirm in WhatsApp and the order status
+changes by itself, with no staff action.
+
+---
+
+# After each phase
+
+Run `npm run typecheck`, `npm run build` and `npm test`. Report the results
+honestly. Review your own diff against CLAUDE.md sections 6 and 8 and report any
+violations. Make one conventional commit. Then stop and wait for me.
