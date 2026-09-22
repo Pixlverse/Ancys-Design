@@ -19,11 +19,16 @@ import { StitchLoader } from "./stitch-loader"
 export function NavigationProgress() {
   const pathname = usePathname()
   const searchParams = useSearchParams()
-  const [pending, setPending] = useState(false)
+  /**
+   * Which kind of wait this is, because the two end differently. A navigation
+   * is over when the URL changes; an action that revalidates in place never
+   * changes the URL, so the document has to be watched instead.
+   */
+  const [pending, setPending] = useState<"navigation" | "action" | null>(null)
 
   // The navigation landed: whatever we started, it is over.
   useEffect(() => {
-    setPending(false)
+    setPending(null)
   }, [pathname, searchParams])
 
   useEffect(() => {
@@ -64,19 +69,19 @@ export function NavigationProgress() {
         return
       }
 
-      setPending(true)
+      setPending("navigation")
     }
 
     function handleSubmit(event: SubmitEvent) {
       if (event.defaultPrevented) return
-      setPending(true)
+      setPending("action")
     }
 
     // Capture phase, so it runs before React's own handlers stop propagation.
     document.addEventListener("click", handleClick, true)
     document.addEventListener("submit", handleSubmit, true)
     // Back and forward are navigations too.
-    window.addEventListener("popstate", () => setPending(true))
+    window.addEventListener("popstate", () => setPending("navigation"))
 
     return () => {
       document.removeEventListener("click", handleClick, true)
@@ -85,24 +90,34 @@ export function NavigationProgress() {
   }, [])
 
   /**
-   * A server action that revalidates in place never changes the URL, so the
-   * effect above never fires for it — the document is watched instead.
-   *
-   * This used to arm the observer after a delay, which was a bug: a fast action
-   * finished re-rendering *before* the observer started, so no mutation was ever
-   * seen and the loader sat there until a 15-second timeout. Actions that take
-   * 10ms appeared to take 15 seconds.
-   *
-   * Now it observes immediately and settles when mutations stop — the page has
-   * finished changing — with a floor so a very fast action still reads as a
-   * deliberate flash rather than a flicker.
+   * A navigation ends when the URL changes, full stop — never on a DOM
+   * settle. Watching the document here was the bug behind "the loader
+   * disappears but the screen has not changed": on a slow connection the
+   * payload is still in flight while some unrelated mutation — React
+   * re-rendering, or a third-party script injecting itself — looked like the
+   * page had finished. The cap only exists so a dropped request cannot leave
+   * the overlay up forever.
    */
   useEffect(() => {
-    if (!pending) return
+    if (pending !== "navigation") return
+    const cap = window.setTimeout(() => setPending(null), 20_000)
+    return () => window.clearTimeout(cap)
+  }, [pending])
+
+  /**
+   * An action that revalidates in place never changes the URL, so the document
+   * is watched instead: it has finished when mutations stop arriving.
+   *
+   * The observer is armed immediately. Arming it after a delay was an earlier
+   * bug — a fast action finished re-rendering before the observer started, so
+   * no mutation was ever seen and the loader sat there until the cap.
+   */
+  useEffect(() => {
+    if (pending !== "action") return
 
     const startedAt = Date.now()
     const MINIMUM_VISIBLE = 350
-    const SETTLED_AFTER = 180
+    const SETTLED_AFTER = 250
 
     let settleTimer: number | undefined
     let done = false
@@ -110,7 +125,7 @@ export function NavigationProgress() {
     const release = () => {
       if (done) return
       done = true
-      setPending(false)
+      setPending(null)
     }
 
     const scheduleRelease = () => {
@@ -127,8 +142,8 @@ export function NavigationProgress() {
       characterData: true,
     })
 
-    // If nothing in the document changes at all, do not hang.
-    const cap = window.setTimeout(release, 8_000)
+    // If the document never changes at all, do not hang.
+    const cap = window.setTimeout(release, 20_000)
 
     return () => {
       window.clearTimeout(settleTimer)
