@@ -13,6 +13,10 @@ import { NextResponse } from "next/server"
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
+declare global {
+  var __healthWarm: boolean | undefined
+}
+
 const DIAGNOSTIC_KEY = "5d8c3f59dd20196d87104e0909c973f7"
 
 export async function GET(request: Request) {
@@ -51,13 +55,38 @@ export async function GET(request: Request) {
     length: secret.length,
   }
 
+  // Where this function actually runs, and how far the database is from it.
+  const runtimeInfo = {
+    region: process.env.AWS_REGION ?? process.env.AWS_DEFAULT_REGION ?? "(unknown)",
+    lambda: process.env.AWS_LAMBDA_FUNCTION_NAME ?? "(none)",
+    coldStart: !globalThis.__healthWarm,
+  }
+  globalThis.__healthWarm = true
+
   const started = Date.now()
   let database: Record<string, unknown>
   try {
     const { connectToDatabase } = await import("@/lib/db")
     const mongoose = await connectToDatabase()
+    const connectMs = Date.now() - started
+
+    // Three sequential round trips on an already-open connection. This is the
+    // per-query latency the dashboard pays for each of its aggregations.
+    const pings: number[] = []
+    for (let i = 0; i < 3; i++) {
+      const t = Date.now()
+      await mongoose.connection.db?.admin().ping()
+      pings.push(Date.now() - t)
+    }
+
     const count = await mongoose.connection.collection("users").countDocuments()
-    database = { ok: true, ms: Date.now() - started, userCount: count }
+    database = {
+      ok: true,
+      ms: Date.now() - started,
+      connectMs,
+      pingMs: pings,
+      userCount: count,
+    }
   } catch (error) {
     database = {
       ok: false,
@@ -69,5 +98,5 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.json({ env, uriShape, cloudinaryShape, database })
+  return NextResponse.json({ runtimeInfo, env, uriShape, cloudinaryShape, database })
 }
