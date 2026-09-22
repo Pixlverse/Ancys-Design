@@ -4,7 +4,9 @@ import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { Bell, ChevronDown, LogOut } from "lucide-react"
 
-import { signOutAction } from "@/app/(portal)/actions"
+import { signOut } from "next-auth/react"
+
+import { LOGIN_PATH } from "@/lib/auth.config"
 
 export interface UserMenuProps {
   name: string
@@ -27,6 +29,7 @@ export function UserMenu({
   unreadCount = 0,
 }: UserMenuProps & { unreadCount?: number }) {
   const [open, setOpen] = useState(false)
+  const [signingOut, setSigningOut] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -107,16 +110,24 @@ export function UserMenu({
             ) : null}
           </Link>
 
-          <form action={signOutAction}>
-            <button
-              type="submit"
-              role="menuitem"
-              className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-sm font-medium transition-colors hover:bg-destructive/10 hover:text-destructive"
-            >
-              <LogOut className="size-4" aria-hidden />
-              Sign out
-            </button>
-          </form>
+          {/* Posts to Auth.js's own /api/auth/signout rather than going through
+              a server action. The action's Set-Cookie did not survive the
+              round trip in production: the browser was redirected to /login
+              while the session cookie stayed put, so a refresh walked straight
+              back into the dashboard. */}
+          <button
+            type="button"
+            role="menuitem"
+            disabled={signingOut}
+            onClick={() => {
+              setSigningOut(true)
+              void signOut({ callbackUrl: LOGIN_PATH })
+            }}
+            className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-sm font-medium transition-colors hover:bg-destructive/10 hover:text-destructive disabled:opacity-60"
+          >
+            <LogOut className="size-4" aria-hidden />
+            {signingOut ? "Signing out…" : "Sign out"}
+          </button>
         </div>
       ) : null}
     </div>
