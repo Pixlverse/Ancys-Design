@@ -21,6 +21,11 @@ export function toMessagingOrder(
       workType: item.workType,
       clothLength: item.clothLength,
       clothSource: item.clothSource,
+      pieces: item.pieces?.map((piece) => ({
+        clothLength: piece.clothLength,
+        clothSource: piece.clothSource,
+        note: piece.note,
+      })),
     })),
     subtotal: order.subtotal,
     discount: order.discount,

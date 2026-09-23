@@ -296,9 +296,15 @@ async function buildItems(
       quantity: item.quantity,
       measurementSetId,
       workType: item.workType,
-      clothLength: item.clothLength,
-      clothSource: item.clothSource,
-      images: item.images,
+      // With pieces, each piece carries its own cloth and photos; the item's
+      // copies would only go stale beside them.
+      ...(item.pieces
+        ? { images: [], pieces: item.pieces }
+        : {
+            clothLength: item.clothLength,
+            clothSource: item.clothSource,
+            images: item.images,
+          }),
       note: item.note,
       dueDate: item.dueDate,
       itemStatus: previous?.itemStatus ?? "pending",

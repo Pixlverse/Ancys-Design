@@ -44,6 +44,14 @@ export interface ExistingMeasurementSet {
   values: MeasurementValues
 }
 
+/** One garment's own cloth, photos and note, when a line's pieces differ. */
+export interface OrderBuilderPiece {
+  clothSource?: ClothSource
+  clothLength: string
+  images: UploadedImage[]
+  note: string
+}
+
 /** An item as it already exists on an order being edited. */
 export interface OrderBuilderInitialItem {
   itemId: string
@@ -57,6 +65,7 @@ export interface OrderBuilderInitialItem {
   dueDate: string
   images: UploadedImage[]
   measurementSetId?: string
+  pieces?: OrderBuilderPiece[]
 }
 
 export interface OrderBuilderProps {
@@ -87,6 +96,13 @@ interface BuilderItem {
   measurementChoice: MeasurementChoice
   newMeasurements: MeasurementValues
   images: UploadedImage[]
+  /**
+   * Whether each piece on this line gets its own cloth, photos and note. Only
+   * offered when the quantity is more than one.
+   */
+  piecesDiffer: boolean
+  /** One per piece while `piecesDiffer`; kept in step with the quantity. */
+  pieces: OrderBuilderPiece[]
   /** The set this item already points at, when editing. */
   measurementSetId?: string
   /** The garment this row already is, when editing. */
@@ -151,6 +167,8 @@ export function OrderBuilder({
       ? initialItems.map((item, index) => ({
           ...item,
           rowId: `existing-${index}`,
+          piecesDiffer: Boolean(item.pieces && item.pieces.length > 1),
+          pieces: item.pieces ?? [],
           measurementChoice: item.measurementSetId
             ? ("existing" as const)
             : ("new" as const),
@@ -188,6 +206,100 @@ export function OrderBuilder({
     })
   }
 
+  function changeQuantity(item: BuilderItem, quantity: string) {
+    const count = pieceCount(quantity)
+    if (!item.piecesDiffer || count === item.pieces.length) {
+      updateItem(item.rowId, { quantity })
+      return
+    }
+
+    if (count > item.pieces.length) {
+      updateItem(item.rowId, {
+        quantity,
+        pieces: [
+          ...item.pieces,
+          ...Array.from({ length: count - item.pieces.length }, () =>
+            blankPiece(item)
+          ),
+        ],
+      })
+      return
+    }
+
+    // Lowering the quantity throws pieces away. If any of them had photos or a
+    // note, that is work somebody did, so ask first.
+    const dropped = item.pieces.slice(count)
+    if (
+      dropped.some(hasContent) &&
+      !window.confirm(
+        `This removes piece${dropped.length > 1 ? "s" : ""} ${count + 1}` +
+          `${dropped.length > 1 ? `–${item.pieces.length}` : ""}` +
+          ` and their photos and notes. Continue?`
+      )
+    ) {
+      return
+    }
+
+    if (count === 1) {
+      updateItem(item.rowId, { quantity, ...collapsePieces(item) })
+    } else {
+      updateItem(item.rowId, { quantity, pieces: item.pieces.slice(0, count) })
+    }
+  }
+
+  function setPiecesDiffer(item: BuilderItem, differ: boolean) {
+    if (differ === item.piecesDiffer) return
+
+    if (differ) {
+      // Whatever was already filled in becomes piece 1, and the rest start
+      // from the same cloth source so staff only change what is different.
+      const count = pieceCount(item.quantity)
+      updateItem(item.rowId, {
+        piecesDiffer: true,
+        pieces: [
+          {
+            clothSource: item.clothSource,
+            clothLength: item.clothLength,
+            images: item.images,
+            note: "",
+          },
+          ...Array.from({ length: count - 1 }, () => blankPiece(item)),
+        ],
+        images: [],
+      })
+      return
+    }
+
+    if (
+      item.pieces.slice(1).some(hasContent) &&
+      !window.confirm(
+        "Only piece 1's cloth and photos will be kept for all of them. Continue?"
+      )
+    ) {
+      return
+    }
+    updateItem(item.rowId, collapsePieces(item))
+  }
+
+  function updatePiece(
+    rowId: string,
+    index: number,
+    patch: Partial<OrderBuilderPiece>
+  ) {
+    setItems((current) =>
+      current.map((item) =>
+        item.rowId === rowId
+          ? {
+              ...item,
+              pieces: item.pieces.map((piece, i) =>
+                i === index ? { ...piece, ...patch } : piece
+              ),
+            }
+          : item
+      )
+    )
+  }
+
   // The live bill. Anything not yet a valid amount simply does not count yet.
   const totals = useMemo(() => {
     const billable = items.map((item) => ({
@@ -213,21 +325,38 @@ export function OrderBuilder({
         item.workType === "stitching" &&
         item.measurementChoice === "existing" &&
         reusableSetId
+      const differ = item.piecesDiffer && pieceCount(item.quantity) > 1
       return {
         ...(item.itemId ? { itemId: item.itemId } : {}),
         garmentTypeId: item.garmentTypeId,
         rate: item.rate,
         quantity: Number(item.quantity) || 1,
         workType: item.workType,
-        ...(item.workType === "stitching"
+        ...(differ
           ? {
-              clothSource: item.clothSource ?? "customer",
-              clothLength: item.clothLength,
+              images: [],
+              pieces: item.pieces.map((piece) => ({
+                ...(item.workType === "stitching"
+                  ? {
+                      clothSource: piece.clothSource ?? "customer",
+                      clothLength: piece.clothLength,
+                    }
+                  : {}),
+                images: piece.images,
+                note: piece.note,
+              })),
             }
-          : {}),
+          : {
+              ...(item.workType === "stitching"
+                ? {
+                    clothSource: item.clothSource ?? "customer",
+                    clothLength: item.clothLength,
+                  }
+                : {}),
+              images: item.images,
+            }),
         note: item.note,
         dueDate: item.dueDate,
-        images: item.images,
         ...(useExisting
           ? { measurementSetId: reusableSetId }
           : item.workType === "stitching" &&
@@ -248,6 +377,8 @@ export function OrderBuilder({
           {items.map((item, index) => {
             const garmentType = garmentTypeById.get(item.garmentTypeId)
             const existing = latestSetFor.get(item.garmentTypeId)
+            const count = pieceCount(item.quantity)
+            const differ = item.piecesDiffer && count > 1
 
             return (
               <Card key={item.rowId}>
@@ -295,6 +426,11 @@ export function OrderBuilder({
                             ...(value === "design_only"
                               ? { clothSource: undefined, clothLength: "" }
                               : { clothSource: item.clothSource ?? "customer" }),
+                            pieces: item.pieces.map((piece) =>
+                              value === "design_only"
+                                ? { ...piece, clothSource: undefined, clothLength: "" }
+                                : { ...piece, clothSource: piece.clothSource ?? "customer" }
+                            ),
                           })
                         }
                         className={`flex-1 rounded-xl px-3 py-2.5 text-left transition-colors ${
@@ -365,7 +501,7 @@ export function OrderBuilder({
                         inputMode="numeric"
                         className="h-11 tabular-nums"
                         onChange={(event) =>
-                          updateItem(item.rowId, { quantity: event.target.value })
+                          changeQuantity(item, event.target.value)
                         }
                         required
                       />
@@ -386,52 +522,35 @@ export function OrderBuilder({
                     </div>
                   </div>
 
-                  {item.workType === "stitching" ? (
-                    <div className="grid gap-4 sm:grid-cols-[1fr_10rem]">
-                      <fieldset className="space-y-2">
-                        <legend className="text-sm font-medium">Cloth</legend>
-                        <div className="flex flex-wrap gap-2">
-                          {CLOTH_SOURCES.map((source) => (
-                            <label
-                              key={source}
-                              className={`flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border px-3 text-sm ${
-                                item.clothSource === source
-                                  ? "border-primary bg-accent"
-                                  : ""
-                              }`}
-                            >
-                              <input
-                                type="radio"
-                                name={`${item.rowId}-cloth`}
-                                checked={item.clothSource === source}
-                                onChange={() =>
-                                  updateItem(item.rowId, { clothSource: source })
-                                }
-                              />
-                              {CLOTH_SOURCE_LABELS[source]}
-                            </label>
-                          ))}
-                        </div>
-                      </fieldset>
-
-                      <div className="space-y-2">
-                        <Label htmlFor={`${item.rowId}-cloth-length`}>
-                          Cloth length (m)
-                        </Label>
-                        <Input
-                          id={`${item.rowId}-cloth-length`}
-                          value={item.clothLength}
-                          inputMode="decimal"
-                          placeholder="2.5"
-                          className="h-11 tabular-nums"
-                          onChange={(event) =>
-                            updateItem(item.rowId, {
-                              clothLength: event.target.value,
-                            })
-                          }
-                        />
+                  {count > 1 ? (
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium">
+                        Cloth, photos and notes for these {count}
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        <ChoiceButton
+                          active={!differ}
+                          onClick={() => setPiecesDiffer(item, false)}
+                        >
+                          Same for all {count}
+                        </ChoiceButton>
+                        <ChoiceButton
+                          active={differ}
+                          onClick={() => setPiecesDiffer(item, true)}
+                        >
+                          Different for each piece
+                        </ChoiceButton>
                       </div>
                     </div>
+                  ) : null}
+
+                  {item.workType === "stitching" && !differ ? (
+                    <ClothFields
+                      idPrefix={item.rowId}
+                      clothSource={item.clothSource}
+                      clothLength={item.clothLength}
+                      onChange={(patch) => updateItem(item.rowId, patch)}
+                    />
                   ) : null}
 
                   {garmentType && item.workType === "stitching" ? (
@@ -484,34 +603,70 @@ export function OrderBuilder({
                     </div>
                   ) : null}
 
-                  <div className="space-y-4 border-t pt-4">
-                    {(item.workType === "design_only"
-                      ? IMAGE_KINDS.filter(({ kind }) => kind === "reference")
-                      : IMAGE_KINDS
-                    ).map(({ kind, label, hint }) => (
-                      <ImageUploader
-                        key={kind}
-                        kind={kind}
-                        label={label}
-                        hint={hint}
+                  {differ ? (
+                    <div className="space-y-3 border-t pt-4">
+                      {item.pieces.map((piece, pieceIndex) => (
+                        <div
+                          key={pieceIndex}
+                          className="space-y-4 rounded-2xl border p-4"
+                        >
+                          <p className="text-sm font-semibold">
+                            Piece {pieceIndex + 1}
+                            {garmentType ? ` — ${garmentType.name}` : ""}
+                          </p>
+                          {item.workType === "stitching" ? (
+                            <ClothFields
+                              idPrefix={`${item.rowId}-p${pieceIndex}`}
+                              clothSource={piece.clothSource}
+                              clothLength={piece.clothLength}
+                              onChange={(patch) =>
+                                updatePiece(item.rowId, pieceIndex, patch)
+                              }
+                            />
+                          ) : null}
+                          <ImageFields
+                            workType={item.workType}
+                            images={piece.images}
+                            disabled={pending}
+                            onChange={(images) =>
+                              updatePiece(item.rowId, pieceIndex, { images })
+                            }
+                          />
+                          <div className="space-y-2">
+                            <Label htmlFor={`${item.rowId}-p${pieceIndex}-note`}>
+                              Note for piece {pieceIndex + 1}{" "}
+                              <span className="text-muted-foreground">(optional)</span>
+                            </Label>
+                            <Textarea
+                              id={`${item.rowId}-p${pieceIndex}-note`}
+                              value={piece.note}
+                              rows={2}
+                              placeholder="Neck style, colour of piping, anything just for this one."
+                              onChange={(event) =>
+                                updatePiece(item.rowId, pieceIndex, {
+                                  note: event.target.value,
+                                })
+                              }
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="border-t pt-4">
+                      <ImageFields
+                        workType={item.workType}
+                        images={item.images}
                         disabled={pending}
-                        images={item.images.filter((image) => image.kind === kind)}
-                        onChange={(next) =>
-                          updateItem(item.rowId, {
-                            // Replace only this kind, leave the other two alone.
-                            images: [
-                              ...item.images.filter((image) => image.kind !== kind),
-                              ...next,
-                            ],
-                          })
-                        }
+                        onChange={(images) => updateItem(item.rowId, { images })}
                       />
-                    ))}
-                  </div>
+                    </div>
+                  )}
 
                   <div className="space-y-2">
                     <Label htmlFor={`${item.rowId}-note`}>
-                      Note <span className="text-muted-foreground">(optional)</span>
+                      {differ ? `Note for all ${count}` : "Note"}{" "}
+                      <span className="text-muted-foreground">(optional)</span>
                     </Label>
                     <Textarea
                       id={`${item.rowId}-note`}
@@ -664,7 +819,129 @@ function blankItem(index: number): BuilderItem {
     measurementChoice: "new",
     newMeasurements: {},
     images: [],
+    piecesDiffer: false,
+    pieces: [],
   }
+}
+
+/** How many garments a quantity box means, treating half-typed as one. */
+function pieceCount(quantity: string): number {
+  return Math.min(99, Math.max(1, Math.floor(Number(quantity)) || 1))
+}
+
+function blankPiece(item: BuilderItem): OrderBuilderPiece {
+  return {
+    clothSource: item.workType === "stitching" ? "customer" : undefined,
+    clothLength: "",
+    images: [],
+    note: "",
+  }
+}
+
+function hasContent(piece: OrderBuilderPiece): boolean {
+  return piece.images.length > 0 || piece.note.trim() !== ""
+}
+
+/** Back to one description for every piece, taken from piece 1. */
+function collapsePieces(item: BuilderItem): Partial<BuilderItem> {
+  const first = item.pieces[0]
+  return {
+    piecesDiffer: false,
+    pieces: [],
+    ...(first
+      ? {
+          clothSource: first.clothSource ?? item.clothSource,
+          clothLength: first.clothLength,
+          images: first.images,
+          // Piece 1's own note is not lost: it joins the shared one.
+          note: [item.note.trim(), first.note.trim()].filter(Boolean).join("\n"),
+        }
+      : {}),
+  }
+}
+
+function ClothFields({
+  idPrefix,
+  clothSource,
+  clothLength,
+  onChange,
+}: {
+  idPrefix: string
+  clothSource?: ClothSource
+  clothLength: string
+  onChange: (patch: { clothSource?: ClothSource; clothLength?: string }) => void
+}) {
+  return (
+    <div className="grid gap-4 sm:grid-cols-[1fr_10rem]">
+      <fieldset className="space-y-2">
+        <legend className="text-sm font-medium">Cloth</legend>
+        <div className="flex flex-wrap gap-2">
+          {CLOTH_SOURCES.map((source) => (
+            <label
+              key={source}
+              className={`flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border px-3 text-sm ${
+                clothSource === source ? "border-primary bg-accent" : ""
+              }`}
+            >
+              <input
+                type="radio"
+                name={`${idPrefix}-cloth`}
+                checked={clothSource === source}
+                onChange={() => onChange({ clothSource: source })}
+              />
+              {CLOTH_SOURCE_LABELS[source]}
+            </label>
+          ))}
+        </div>
+      </fieldset>
+
+      <div className="space-y-2">
+        <Label htmlFor={`${idPrefix}-cloth-length`}>Cloth length (m)</Label>
+        <Input
+          id={`${idPrefix}-cloth-length`}
+          value={clothLength}
+          inputMode="decimal"
+          placeholder="2.5"
+          className="h-11 tabular-nums"
+          onChange={(event) => onChange({ clothLength: event.target.value })}
+        />
+      </div>
+    </div>
+  )
+}
+
+function ImageFields({
+  workType,
+  images,
+  disabled,
+  onChange,
+}: {
+  workType: WorkType
+  images: UploadedImage[]
+  disabled: boolean
+  onChange: (images: UploadedImage[]) => void
+}) {
+  return (
+    <div className="space-y-4">
+      {(workType === "design_only"
+        ? IMAGE_KINDS.filter(({ kind }) => kind === "reference")
+        : IMAGE_KINDS
+      ).map(({ kind, label, hint }) => (
+        <ImageUploader
+          key={kind}
+          kind={kind}
+          label={label}
+          hint={hint}
+          disabled={disabled}
+          images={images.filter((image) => image.kind === kind)}
+          onChange={(next) =>
+            // Replace only this kind, leave the other two alone.
+            onChange([...images.filter((image) => image.kind !== kind), ...next])
+          }
+        />
+      ))}
+    </div>
+  )
 }
 
 /** Rupee text to paise, treating anything half-typed as nothing yet. */

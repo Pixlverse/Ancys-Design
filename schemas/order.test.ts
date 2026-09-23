@@ -67,6 +67,57 @@ describe("orderItemInputSchema", () => {
   })
 })
 
+describe("orderItemInputSchema pieces", () => {
+  const piece = { clothSource: "customer", images: [] }
+
+  it("leaves pieces absent when every piece is the same", () => {
+    expect(orderItemInputSchema.parse({ ...item, quantity: 3 }).pieces).toBeUndefined()
+  })
+
+  it("accepts one piece per garment, each with its own note", () => {
+    const parsed = orderItemInputSchema.parse({
+      ...item,
+      quantity: 2,
+      clothSource: undefined,
+      pieces: [
+        { ...piece, clothLength: "2.5", note: "Blue silk" },
+        { ...piece, note: "  " },
+      ],
+    })
+    expect(parsed.pieces?.[0]).toMatchObject({ clothLength: 2.5, note: "Blue silk" })
+    expect(parsed.pieces?.[1].note).toBeUndefined()
+  })
+
+  it("rejects a piece count that does not match the quantity", () => {
+    expect(
+      orderItemInputSchema.safeParse({ ...item, quantity: 3, pieces: [piece, piece] })
+        .success
+    ).toBe(false)
+  })
+
+  it("asks whose cloth each stitched piece is", () => {
+    const result = orderItemInputSchema.safeParse({
+      ...item,
+      quantity: 2,
+      pieces: [piece, { images: [] }],
+    })
+    expect(result.success).toBe(false)
+    expect(result.error?.issues[0].path).toEqual(["pieces", 1, "clothSource"])
+  })
+
+  it("does not ask about cloth on design-only pieces", () => {
+    expect(
+      orderItemInputSchema.safeParse({
+        ...item,
+        workType: "design_only",
+        clothSource: undefined,
+        quantity: 2,
+        pieces: [{ images: [] }, { images: [] }],
+      }).success
+    ).toBe(true)
+  })
+})
+
 describe("orderInputSchema", () => {
   const order = { customerId: OID, items: [item] }
 

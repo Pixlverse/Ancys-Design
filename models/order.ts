@@ -19,6 +19,15 @@ export interface OrderImage {
   kind: OrderImageKind
 }
 
+/** One garment of several on a line, when they differ — see schemas/order.ts. */
+export interface OrderItemPiece {
+  clothSource?: ClothSource
+  /** Metres of cloth. */
+  clothLength?: number
+  images: OrderImage[]
+  note?: string
+}
+
 /**
  * Items are embedded: they are never read without their order, and they carry
  * snapshots that must not drift. `garmentTypeName` and `rate` are copied at
@@ -40,7 +49,13 @@ export interface OrderItem {
   /** Absent on design-only work, where no cloth is involved. */
   clothSource?: ClothSource
   images: OrderImage[]
+  /** With pieces, the note that applies to all of them. */
   note?: string
+  /**
+   * Set only when the pieces on this line differ. Absent means they are all
+   * alike and the fields above describe every one.
+   */
+  pieces?: OrderItemPiece[]
   dueDate: Date
   itemStatus: OrderItemStatus
   /** An Assignee, not a User — see models/assignee.ts. */
@@ -108,6 +123,16 @@ const orderImageSchema = new Schema<OrderImage>(
   { _id: false }
 )
 
+const orderItemPieceSchema = new Schema<OrderItemPiece>(
+  {
+    clothSource: { type: String, enum: CLOTH_SOURCES },
+    clothLength: { type: Number, min: 0 },
+    images: { type: [orderImageSchema], default: [] },
+    note: { type: String, trim: true },
+  },
+  { _id: false }
+)
+
 const orderItemSchema = new Schema<OrderItem>({
   garmentTypeId: {
     type: Schema.Types.ObjectId,
@@ -128,6 +153,8 @@ const orderItemSchema = new Schema<OrderItem>({
   clothSource: { type: String, enum: CLOTH_SOURCES },
   images: { type: [orderImageSchema], default: [] },
   note: { type: String, trim: true },
+  // No default: an empty array would read as "differs" on every old order.
+  pieces: { type: [orderItemPieceSchema], default: undefined },
   dueDate: { type: Date, required: true },
   itemStatus: {
     type: String,

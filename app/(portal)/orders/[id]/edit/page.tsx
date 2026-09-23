@@ -130,6 +130,16 @@ export default async function EditOrderPage({
           measurementSetId: item.measurementSetId
             ? String(item.measurementSetId)
             : undefined,
+          pieces: item.pieces?.map((piece) => ({
+            clothSource: piece.clothSource,
+            clothLength: piece.clothLength ? String(piece.clothLength) : "",
+            note: piece.note ?? "",
+            images: piece.images.map((image) => ({
+              url: image.url,
+              publicId: image.publicId,
+              kind: image.kind,
+            })),
+          })),
         }))}
         initialDiscount={order.discount > 0 ? String(toRupees(order.discount)) : ""}
         initialAdvancePaid={

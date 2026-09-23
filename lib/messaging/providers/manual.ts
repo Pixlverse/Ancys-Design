@@ -109,9 +109,20 @@ function itemLines(items: readonly MessagingOrderItem[]): string {
         (item.quantity > 1 ? ` × ${item.quantity}` : "") +
         `*`
 
+      // Each piece on its own line, so a customer who brought three cloths can
+      // check each one was understood.
+      const pieces = (item.pieces ?? []).map((piece, index) => {
+        const parts: string[] = []
+        if (piece.clothLength) parts.push(`${piece.clothLength}m cloth`)
+        if (piece.clothSource === "shop") parts.push("cloth from us")
+        if (piece.note) parts.push(piece.note.replace(/\s+/g, " "))
+        return `Piece ${index + 1}${parts.length > 0 ? `: ${parts.join(" · ")}` : ""}`
+      })
+
       return (
         `${name} — ${formatMoney(item.rate * item.quantity)}` +
         (detail.length > 0 ? `\n${detail.join(" · ")}` : "") +
+        (pieces.length > 0 ? `\n${pieces.join("\n")}` : "") +
         `\nReady by *${formatDate(item.dueDate, { withYear: true })}*`
       )
     })

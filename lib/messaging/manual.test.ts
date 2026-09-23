@@ -187,6 +187,28 @@ describe("the two-stage messages", () => {
     expect(result.body).toContain("2.5m cloth")
   })
 
+  it("lists each piece when the pieces on a line differ", async () => {
+    const result = await provider.sendOrderConfirmation(
+      {
+        ...order,
+        items: [
+          {
+            ...order.items[0],
+            quantity: 2,
+            pieces: [
+              { clothLength: 2.5, clothSource: "customer", note: "Blue silk" },
+              { clothSource: "shop" },
+            ],
+          },
+        ],
+      },
+      customer
+    )
+    if (result.status !== "manual") throw new Error("expected a manual result")
+    expect(result.body).toContain("Piece 1: 2.5m cloth · Blue silk")
+    expect(result.body).toContain("Piece 2: cloth from us")
+  })
+
   it("says when an item is design work only", async () => {
     const result = await provider.sendOrderConfirmation(withCloth, customer)
     if (result.status !== "manual") throw new Error("expected a manual result")

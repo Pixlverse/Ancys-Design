@@ -72,6 +72,40 @@ const objectIdSchema = z
   .trim()
   .regex(/^[0-9a-f]{24}$/i, "Not a valid id")
 
+/** Metres of cloth, as typed. Blank or nonsense means "not measured". */
+const clothLengthSchema = z
+  .union([z.string(), z.number()])
+  .transform((value) => {
+    const text = String(value).trim()
+    if (text === "") return undefined
+    const parsed = Number(text)
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined
+  })
+  .optional()
+
+const noteSchema = z
+  .string()
+  .trim()
+  .max(1000)
+  .transform((value) => (value === "" ? undefined : value))
+  .optional()
+
+/**
+ * One physical garment within a line of several — three churidar sets from
+ * three different cloths. Measurements, rate and due date stay on the item and
+ * are shared; what the customer brought for each piece lives here.
+ *
+ * Beyond CLAUDE.md section 5, which gives an item one set of cloth and photos.
+ */
+export const orderItemPieceInputSchema = z.object({
+  clothSource: clothSourceSchema.optional(),
+  clothLength: clothLengthSchema,
+  images: z.array(orderImageSchema).max(30).default([]),
+  note: noteSchema,
+})
+
+export type OrderItemPieceInput = z.infer<typeof orderItemPieceInputSchema>
+
 export const orderItemInputSchema = z.object({
   /**
    * Present when editing: identifies the garment this row already is, so its
@@ -89,15 +123,7 @@ export const orderItemInputSchema = z.object({
    * Metres of cloth, as the customer brought it. Quoted back to them in the
    * confirmation message so they can check it before work starts.
    */
-  clothLength: z
-    .union([z.string(), z.number()])
-    .transform((value) => {
-      const text = String(value).trim()
-      if (text === "") return undefined
-      const parsed = Number(text)
-      return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined
-    })
-    .optional(),
+  clothLength: clothLengthSchema,
   measurementSetId: objectIdSchema.optional(),
   /**
    * Measurements taken inline while writing the order. Validated against the
@@ -108,15 +134,38 @@ export const orderItemInputSchema = z.object({
   /** Not asked for on design-only work, where no cloth is involved. */
   clothSource: clothSourceSchema.optional(),
   images: z.array(orderImageSchema).max(30).default([]),
-  note: z
-    .string()
-    .trim()
-    .max(1000)
-    .transform((value) => (value === "" ? undefined : value))
-    .optional(),
+  /** With pieces, this is the note that applies to all of them. */
+  note: noteSchema,
+  /**
+   * Present only when the pieces differ from one another. Absent means every
+   * piece is the same, and the item's own cloth, photos and note describe all.
+   */
+  pieces: z.array(orderItemPieceInputSchema).max(99).optional(),
   dueDate: dateInputSchema,
 })
   .superRefine((item, ctx) => {
+    if (item.pieces) {
+      if (item.pieces.length !== item.quantity) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["pieces"],
+          message: `Fill in all ${item.quantity} pieces, or mark them the same`,
+        })
+      }
+      if (item.workType === "stitching") {
+        item.pieces.forEach((piece, index) => {
+          if (!piece.clothSource) {
+            ctx.addIssue({
+              code: "custom",
+              path: ["pieces", index, "clothSource"],
+              message: `Say whose cloth piece ${index + 1} is`,
+            })
+          }
+        })
+      }
+      return
+    }
+
     // Stitching needs to know whose cloth it is; design work does not.
     if (item.workType === "stitching" && !item.clothSource) {
       ctx.addIssue({

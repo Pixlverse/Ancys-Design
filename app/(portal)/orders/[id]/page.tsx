@@ -227,7 +227,9 @@ export default async function OrderPage({
                       value={
                         item.workType === "design_only"
                           ? "Design only"
-                          : item.clothSource === "customer"
+                          : item.pieces?.length
+                            ? "Different per piece"
+                            : item.clothSource === "customer"
                             ? `Customer brought${item.clothLength ? ` · ${item.clothLength}m` : ""}`
                             : `Shop provides${item.clothLength ? ` · ${item.clothLength}m` : ""}`
                       }
@@ -273,10 +275,39 @@ export default async function OrderPage({
 
                   <OrderItemImages images={item.images} />
 
+                  {item.pieces?.length ? (
+                    <div className="space-y-3">
+                      {item.pieces.map((piece, index) => (
+                        <div
+                          key={index}
+                          className="space-y-3 rounded-2xl border border-border/60 p-3.5"
+                        >
+                          <div className="flex flex-wrap items-baseline justify-between gap-2">
+                            <p className="text-sm font-semibold">Piece {index + 1}</p>
+                            {item.workType === "stitching" ? (
+                              <p className="text-xs text-muted-foreground">
+                                {piece.clothSource === "shop"
+                                  ? "Shop provides"
+                                  : "Customer brought"}
+                                {piece.clothLength ? ` · ${piece.clothLength}m` : ""}
+                              </p>
+                            ) : null}
+                          </div>
+                          <OrderItemImages images={piece.images} />
+                          {piece.note ? (
+                            <p className="rounded-2xl bg-accent/50 p-3 text-sm whitespace-pre-line">
+                              {piece.note}
+                            </p>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+
                   {item.note ? (
                     <div>
                       <p className="mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-                        Note
+                        {item.pieces?.length ? "Note for all pieces" : "Note"}
                       </p>
                       <p className="rounded-2xl bg-accent/50 p-3 text-sm whitespace-pre-line">
                         {item.note}

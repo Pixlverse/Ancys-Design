@@ -97,6 +97,29 @@ export default async function PublicOrderPage({
 
             <OrderItemImages images={item.images} />
 
+            {item.pieces?.map((piece, index) => (
+              <div
+                key={index}
+                className="space-y-3 rounded-2xl border border-border/60 p-4"
+              >
+                <p className="font-medium">
+                  Piece {index + 1}
+                  {piece.clothLength ? (
+                    <span className="text-sm font-normal text-muted-foreground">
+                      {" "}
+                      · {piece.clothLength}m cloth
+                    </span>
+                  ) : null}
+                </p>
+                <OrderItemImages images={piece.images} />
+                {piece.note ? (
+                  <p className="whitespace-pre-line rounded-md bg-muted/60 p-3 text-sm">
+                    {piece.note}
+                  </p>
+                ) : null}
+              </div>
+            ))}
+
             {item.note ? (
               <p className="whitespace-pre-line rounded-md bg-muted/60 p-3 text-sm">
                 {item.note}

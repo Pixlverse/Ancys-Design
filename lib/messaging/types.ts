@@ -19,6 +19,8 @@ export interface MessagingOrderItem {
   /** Metres of cloth, quoted back so the customer can check it. */
   clothLength?: number
   clothSource?: string
+  /** Present when the pieces on this line differ from one another. */
+  pieces?: readonly { clothLength?: number; clothSource?: string; note?: string }[]
 }
 
 export interface MessagingOrder {
