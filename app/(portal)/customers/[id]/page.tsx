@@ -8,8 +8,10 @@ import {
   CustomerStatusPill,
   OrderStatusPill,
 } from "@/components/domain/StatusPill"
+import { TaggedPurchasesCard } from "@/components/domain/TaggedPurchasesCard"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { auth } from "@/lib/auth"
 import { connectToDatabase } from "@/lib/db"
 import { formatDate } from "@/lib/dates"
 import { formatMeasurement } from "@/lib/measurements"
@@ -19,6 +21,7 @@ import { Customer } from "@/models/customer"
 import { GarmentType } from "@/models/garmentType"
 import { MeasurementSet, type MeasurementSetDocument } from "@/models/measurementSet"
 import { Order } from "@/models/order"
+import { Purchase } from "@/models/purchase"
 
 export const metadata: Metadata = { title: "Customer · Ancys Design" }
 
@@ -61,6 +64,18 @@ export default async function CustomerPage({
     .sort({ createdAt: -1 })
     .limit(20)
     .lean()
+
+  // Everything tagged to them, whether against one of their orders or not.
+  const [purchases, session] = await Promise.all([
+    Purchase.find({ customerId: id, isDeleted: false })
+      .select({ purchasedOn: 1, lines: 1, total: 1, vendor: 1, billImages: 1, orderNo: 1 })
+      .sort({ purchasedOn: -1 })
+      .limit(20)
+      .lean(),
+    auth(),
+  ])
+  const canAddPurchase =
+    session?.user?.role === "owner" || session?.user?.role === "staff"
 
   const garmentTypes = await GarmentType.find({
     _id: { $in: latestByGarment.map((row) => row._id) },
@@ -209,6 +224,13 @@ export default async function CustomerPage({
           )}
         </CardContent>
       </Card>
+
+      <TaggedPurchasesCard
+        purchases={purchases}
+        addHref={canAddPurchase ? `/purchases/new?customerId=${id}` : undefined}
+        emptyText="Nothing bought for this customer yet. To tag a purchase to one order, add it from that order's page."
+        showOrderNo
+      />
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-3">

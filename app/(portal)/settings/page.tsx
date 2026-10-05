@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { ChevronRight, IndianRupee, Shirt, Users } from "lucide-react"
+import { ChevronRight, IndianRupee, Shirt, ShoppingBag, Users } from "lucide-react"
 import type { Metadata } from "next"
 
 import { Card, CardContent } from "@/components/ui/card"
@@ -7,6 +7,13 @@ import { Card, CardContent } from "@/components/ui/card"
 export const metadata: Metadata = { title: "Settings · Ancys Design" }
 
 const SETTINGS_SECTIONS = [
+  {
+    // Lives in the sidebar on desktop; this is its way in on a phone.
+    href: "/purchases",
+    icon: ShoppingBag,
+    title: "Purchases",
+    description: "Thread, lining and other things bought for the shop, with their bills.",
+  },
   {
     href: "/settings/garment-types",
     icon: Shirt,

@@ -16,6 +16,7 @@ import {
   StatusPill,
 } from "@/components/domain/StatusPill"
 import { OrderItemImages } from "@/components/domain/OrderItemImages"
+import { TaggedPurchasesCard } from "@/components/domain/TaggedPurchasesCard"
 import {
   ItemStageTracker,
   OrderStageTracker,
@@ -23,6 +24,7 @@ import {
 } from "@/components/domain/StatusActions"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { auth } from "@/lib/auth"
 import { DUE_TONE_CLASSES, dueTone } from "@/lib/calendar"
 import { daysUntil, formatDate } from "@/lib/dates"
 import { connectToDatabase } from "@/lib/db"
@@ -34,6 +36,7 @@ import { GarmentType } from "@/models/garmentType"
 import { MeasurementSet } from "@/models/measurementSet"
 import { Order } from "@/models/order"
 import { Assignee } from "@/models/assignee"
+import { Purchase } from "@/models/purchase"
 
 export const metadata: Metadata = { title: "Order · Ancys Design" }
 
@@ -49,7 +52,7 @@ export default async function OrderPage({
   const order = await Order.findOne({ _id: id, isDeleted: false }).lean()
   if (!order) notFound()
 
-  const [customer, garmentTypes, measurementSets, assigneeDocs] = await Promise.all([
+  const [customer, garmentTypes, measurementSets, assigneeDocs, purchases, session] = await Promise.all([
     Customer.findById(order.customerId).select({ name: 1, phone: 1 }).lean(),
     GarmentType.find({
       _id: { $in: order.items.map((item) => item.garmentTypeId) },
@@ -67,7 +70,14 @@ export default async function OrderPage({
       .select({ name: 1 })
       .sort({ name: 1 })
       .lean(),
+    Purchase.find({ orderId: id, isDeleted: false })
+      .select({ purchasedOn: 1, lines: 1, total: 1, vendor: 1, billImages: 1, orderNo: 1 })
+      .sort({ purchasedOn: -1 })
+      .lean(),
+    auth(),
   ])
+  const canAddPurchase =
+    session?.user?.role === "owner" || session?.user?.role === "staff"
 
   const assignees: AssigneeOption[] = assigneeDocs.map((assignee) => ({
     id: String(assignee._id),
@@ -395,6 +405,12 @@ export default async function OrderPage({
               ) : null}
             </CardContent>
           </Card>
+
+          <TaggedPurchasesCard
+            purchases={purchases}
+            addHref={canAddPurchase ? `/purchases/new?orderId=${id}` : undefined}
+            emptyText="Nothing bought for this order yet. If someone buys thread or lining for it, add it here."
+          />
 
           <ConfirmationCard
             orderId={id}

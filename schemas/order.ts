@@ -67,7 +67,7 @@ export const dateInputSchema = z.string().transform((value, ctx) => {
   return parsed
 })
 
-const objectIdSchema = z
+export const objectIdSchema = z
   .string()
   .trim()
   .regex(/^[0-9a-f]{24}$/i, "Not a valid id")

@@ -19,7 +19,7 @@ export function MobileTabBar() {
 
   return (
     <nav className="fixed bottom-3 left-1/2 z-40 w-[calc(100%-1.5rem)] max-w-lg -translate-x-1/2 grid grid-cols-5 gap-1 rounded-[1.75rem] bg-sidebar p-1.5 tile-float pb-[calc(0.375rem+env(safe-area-inset-bottom))] xl:hidden">
-      {NAV_ITEMS.map(({ label, href, icon: Icon }) => {
+      {NAV_ITEMS.filter((item) => item.inTabBar !== false).map(({ label, href, icon: Icon }) => {
         const active = isActiveNav(pathname, href)
         return (
           <Link

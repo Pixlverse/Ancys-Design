@@ -12,18 +12,19 @@ import {
 } from "@/lib/cloudinary"
 import type { OrderImageKind } from "@/schemas/order"
 
-export interface UploadedImage {
+/** `kind` says what the photo is of — an order's cloth, a purchase's bill. */
+export interface UploadedImage<K extends string = OrderImageKind> {
   url: string
   publicId: string
-  kind: OrderImageKind
+  kind: K
 }
 
-export interface ImageUploaderProps {
-  kind: OrderImageKind
+export interface ImageUploaderProps<K extends string = OrderImageKind> {
+  kind: K
   label: string
   hint?: string
-  images: UploadedImage[]
-  onChange: (images: UploadedImage[]) => void
+  images: UploadedImage<K>[]
+  onChange: (images: UploadedImage<K>[]) => void
   disabled?: boolean
 }
 
@@ -40,14 +41,14 @@ interface InFlight {
  * its own progress bar and its own failure, and nothing blocks the rest of the
  * form.
  */
-export function ImageUploader({
+export function ImageUploader<K extends string = OrderImageKind>({
   kind,
   label,
   hint,
   images,
   onChange,
   disabled = false,
-}: ImageUploaderProps) {
+}: ImageUploaderProps<K>) {
   const [inFlight, setInFlight] = useState<InFlight[]>([])
   const inputRef = useRef<HTMLInputElement>(null)
   const cameraRef = useRef<HTMLInputElement>(null)
