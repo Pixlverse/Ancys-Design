@@ -129,6 +129,19 @@ describe("the manual provider", () => {
     expect(result.body).toContain("/o/")
   })
 
+  it("links the terms and conditions in the bill, and only there", async () => {
+    const bill = await provider.sendBill(order, customer)
+    const confirmation = await provider.sendOrderConfirmation(order, customer)
+    if (bill.status !== "manual" || confirmation.status !== "manual") {
+      throw new Error("expected a manual result")
+    }
+    expect(bill.body).toContain("Terms and conditions:")
+    expect(bill.body).toContain(
+      "https://shop.example.com/terms-and-conditions.pdf"
+    )
+    expect(confirmation.body).not.toContain("terms-and-conditions.pdf")
+  })
+
   it("names the one garment in a due reminder, not the whole order", async () => {
     const result = await provider.sendDueReminder(order, order.items[1], customer)
     if (result.status !== "manual") throw new Error("expected a manual result")

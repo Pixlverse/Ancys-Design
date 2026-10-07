@@ -77,9 +77,18 @@ function waLink(phone: string, body: string): string {
   return `https://wa.me/${digits}?text=${encodeURIComponent(body)}`
 }
 
-export function publicOrderUrl(token: string): string {
+function appUrl(path: string): string {
   const base = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"
-  return `${base.replace(/\/$/, "")}/o/${token}`
+  return `${base.replace(/\/$/, "")}${path}`
+}
+
+export function publicOrderUrl(token: string): string {
+  return appUrl(`/o/${token}`)
+}
+
+/** Served from `public/`, which the auth middleware does not guard. */
+export function termsUrl(): string {
+  return appUrl("/terms-and-conditions.pdf")
 }
 
 function shopSignature(): string {
@@ -191,6 +200,7 @@ export function composeBill(
       ? `Paid in full. Thank you.`
       : `Please settle *${formatMoney(order.balance)}* on collection.`) +
     `${orderPageLine(order, "Photos and full details:")}\n\n` +
+    `Terms and conditions:\n${termsUrl()}\n\n` +
     shopSignature()
   )
 }
